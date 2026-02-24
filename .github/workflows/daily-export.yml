@@ -1,0 +1,62 @@
+name: Daily Gym CSV Export
+
+on:
+  schedule:
+    # 21:40 Asia/Taipei == 13:40 UTC
+    - cron: "40 13 * * *"
+  workflow_dispatch:
+    inputs:
+      export_date:
+        description: "Taipei local date to export (YYYY-MM-DD). Leave blank for today."
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests
+
+      - name: Export daily CSV from Supabase
+        env:
+          TZ_NAME: Asia/Taipei
+          EXPORT_DATE: ${{ github.event.inputs.export_date }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+            echo "Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY secret."
+            exit 1
+          fi
+
+          if [ -n "$EXPORT_DATE" ]; then
+            python export_daily_csv.py --timezone "$TZ_NAME" --date "$EXPORT_DATE"
+          else
+            python export_daily_csv.py --timezone "$TZ_NAME"
+          fi
+
+      - name: Commit exported CSV
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add gym_data.csv
+          if git diff --cached --quiet; then
+            echo "No CSV changes to commit."
+            exit 0
+          fi
+          git commit -m "data: daily gym csv export"
+          git push
