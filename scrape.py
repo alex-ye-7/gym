@@ -1,16 +1,11 @@
 import argparse
-import csv
 import os
-import sqlite3
 from datetime import datetime, time
 from zoneinfo import ZoneInfo
-
 import requests
 from bs4 import BeautifulSoup
 
 PATH = "https://rent.pe.ntu.edu.tw/"
-CSV_PATH = "gym_data.csv"
-SQLITE_PATH = "gym_data.db"
 
 def scrape_gym_count():
     response = requests.get(PATH, timeout=20)
@@ -25,29 +20,6 @@ def scrape_gym_count():
             count = int(item.find("span").text.strip())
 
     return count
-
-def save_to_csv(data, path=CSV_PATH):
-    with open(path, "a", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=["timestamp", "count"])
-        if f.tell() == 0:
-            writer.writeheader()
-        writer.writerow(data)
-
-def save_to_sqlite(data, path=SQLITE_PATH):
-    with sqlite3.connect(path) as conn:
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS gym_data (
-                timestamp TEXT PRIMARY KEY,
-                count INTEGER NOT NULL
-            )
-            """
-        )
-        conn.execute(
-            "INSERT OR REPLACE INTO gym_data (timestamp, count) VALUES (?, ?)",
-            (data["timestamp"], data["count"]),
-        )
-        conn.commit()
 
 def insert_to_supabase(data):
     base_url = os.getenv("SUPABASE_URL", "").rstrip("/")
@@ -84,8 +56,7 @@ def in_collection_window(now_local):
         return time(9, 0) <= current_time <= time(21, 30)
     return time(9, 0) <= current_time <= time(17, 30)  # Sun
 
-
-def run(tz_name, write_csv, write_sqlite, write_supabase):
+def run(tz_name, write_supabase):
     now_local = datetime.now(ZoneInfo(tz_name))
     if not in_collection_window(now_local):
         print(f"Outside collection window for {tz_name}: {now_local.isoformat()}")
@@ -94,33 +65,18 @@ def run(tz_name, write_csv, write_sqlite, write_supabase):
     count = scrape_gym_count()
     data = {"timestamp": now_local.isoformat(), "count": count}
 
-    if write_csv:
-        save_to_csv(data)
-    if write_sqlite:
-        save_to_sqlite(data)
     if write_supabase:
         insert_to_supabase(data)
     print(data)
 
-
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="Scrape gym occupancy and persist to CSV/SQLite/Supabase."
+        description="Scrape gym occupancy and persist to Supabase."
     )
     parser.add_argument(
         "--timezone",
         default="Asia/Taipei",
         help="IANA timezone for collection window checks.",
-    )
-    parser.add_argument(
-        "--csv",
-        action="store_true",
-        help="Write rows to gym_data.csv.",
-    )
-    parser.add_argument(
-        "--sqlite",
-        action="store_true",
-        help="Write rows to gym_data.db.",
     )
     parser.add_argument(
         "--supabase",
@@ -132,12 +88,8 @@ def parse_args():
 
 if __name__ == "__main__":
     args = parse_args()
-    write_csv = args.csv
-    write_sqlite = args.sqlite
-    write_supabase = args.supabase or (not args.csv and not args.sqlite and not args.supabase)
+    write_supabase = args.supabase
     run(
         tz_name=args.timezone,
-        write_csv=write_csv,
-        write_sqlite=write_sqlite,
         write_supabase=write_supabase,
     )

@@ -1,6 +1,6 @@
 ## This script
 - Scrapes National Taiwan University fitness center occupancy from `https://rent.pe.ntu.edu.tw/`.
-- Runs every 5 minutes with GitHub Actions.
+- Runs every 10 minutes with GitHub Actions.
 - Writes each row to Supabase table `gym_data`.
 - Exports daily CSV snapshot (`gym_data.csv`) and commits once per day.
 
@@ -12,7 +12,7 @@ Data is only collected:
 
 ## Workflows
 - `Gym Scrape` (`.github/workflows/gym-scrape.yml`)
-  - Cron: every 5 minutes
+  - Cron: every 10 minutes
   - Inserts row into Supabase only
 
 - `Daily Gym CSV Export` (`.github/workflows/daily-export.yml`)

@@ -3,7 +3,6 @@ import csv
 import os
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
-
 import requests
 
 CSV_PATH = "gym_data.csv"
@@ -64,14 +63,12 @@ def fetch_rows(local_day, tz_name):
 
     return rows
 
-
 def write_csv(rows, path=CSV_PATH):
     with open(path, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=["timestamp", "count"])
         writer.writeheader()
         for row in rows:
             writer.writerow({"timestamp": row["ts"], "count": row["count"]})
-
 
 def main():
     parser = argparse.ArgumentParser(
@@ -85,7 +82,6 @@ def main():
     rows = fetch_rows(local_day, args.timezone)
     write_csv(rows)
     print(f"Exported {len(rows)} rows for {local_day.isoformat()} to {CSV_PATH}")
-
 
 if __name__ == "__main__":
     main()
