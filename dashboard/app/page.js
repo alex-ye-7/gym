@@ -12,8 +12,16 @@ const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const REFRESH_MS = 10 * 60 * 1000; // 10 min
 
 // Taipei is UTC+8
+const parseTimestamp = (tsStr) => {
+  // Handle database format: "2026-03-10 13:30:01.063+00" → ISO format
+  if (typeof tsStr === 'string' && tsStr.includes(' ') && !tsStr.includes('T')) {
+    tsStr = tsStr.replace(' ', 'T').replace(/\+00$/, 'Z');
+  }
+  return new Date(tsStr);
+};
+
 const toTaipei = (utcStr) => {
-  const d = new Date(utcStr);
+  const d = parseTimestamp(utcStr);
   return new Date(d.getTime() + 8 * 60 * 60 * 1000);
 };
 
@@ -99,29 +107,43 @@ const CustomTooltip = ({ active, payload, label }) => {
 
 // ── MAIN ──────────────────────────────────────────────────────────────────────
 export default function GymDashboard() {
-  const [todayData,     setTodayData]     = useState([]);
-  const [yesterdayData, setYesterdayData] = useState([]);
-  const [weekAgoData,   setWeekAgoData]   = useState([]);
-  const [showYesterday, setShowYesterday] = useState(false);
-  const [showWeekAgo,   setShowWeekAgo]   = useState(false);
-  const [loading,       setLoading]       = useState(true);
-  const [error,         setError]         = useState(null);
-  const [lastUpdated,   setLastUpdated]   = useState(null);
+  const [selectedDateOffset, setSelectedDateOffset] = useState(0); // 0 = today, -1 = yesterday, etc.
+  const [selectedData,      setSelectedData]      = useState([]);
+  const [yesterdayData,     setYesterdayData]     = useState([]);
+  const [weekAgoData,       setWeekAgoData]       = useState([]);
+  const [showYesterday,     setShowYesterday]     = useState(false);
+  const [showWeekAgo,       setShowWeekAgo]       = useState(false);
+  const [loading,           setLoading]           = useState(true);
+  const [error,             setError]             = useState(null);
+  const [lastUpdated,       setLastUpdated]       = useState(null);
+
+  // Format a Taipei date label from offset
+  const getDisplayDate = (offsetDays = 0) => {
+    const nowUtc = new Date();
+    const nowTaipei = new Date(nowUtc.getTime() + 8 * 60 * 60 * 1000);
+    const d = new Date(nowTaipei.getTime());
+    d.setUTCDate(d.getUTCDate() + offsetDays);
+    const year = d.getUTCFullYear();
+    const month = String(d.getUTCMonth() + 1).padStart(2, "0");
+    const date = String(d.getUTCDate()).padStart(2, "0");
+    const dow = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][d.getUTCDay()];
+    return { display: `${year}-${month}-${date}`, dow, full: `${dow}, ${year}-${month}-${date}` };
+  };
 
   const load = useCallback(async () => {
     try {
       setError(null);
-      const [t0, t1] = taipeiDayRange(0);
-      const [y0, y1] = taipeiDayRange(-1);
-      const [w0, w1] = taipeiDayRange(-7);
+      const [t0, t1] = taipeiDayRange(selectedDateOffset);
+      const [y0, y1] = taipeiDayRange(selectedDateOffset - 1);
+      const [w0, w1] = taipeiDayRange(selectedDateOffset - 7);
 
-      const [today, yesterday, weekAgo] = await Promise.all([
+      const [selected, yesterday, weekAgo] = await Promise.all([
         fetchRows(t0, t1),
         fetchRows(y0, y1),
         fetchRows(w0, w1),
       ]);
 
-      setTodayData(rowsToChartData(today));
+      setSelectedData(rowsToChartData(selected));
       setYesterdayData(rowsToChartData(yesterday));
       setWeekAgoData(rowsToChartData(weekAgo));
       setLastUpdated(new Date());
@@ -130,18 +152,21 @@ export default function GymDashboard() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [selectedDateOffset]);
 
   useEffect(() => {
     load();
-    const interval = setInterval(load, REFRESH_MS);
-    return () => clearInterval(interval);
-  }, [load]);
+    // Only auto-refresh if showing today's data
+    if (selectedDateOffset === 0) {
+      const interval = setInterval(load, REFRESH_MS);
+      return () => clearInterval(interval);
+    }
+  }, [load, selectedDateOffset]);
 
-  const latest     = todayData.at(-1);
+  const latest     = selectedData.at(-1);
   const currentCount = latest?.count ?? null;
-  const todayPeak  = todayData.length ? Math.max(...todayData.map((d) => d.count)) : null;
-  const todayPeakTime = todayData.find((d) => d.count === todayPeak)?.time;
+  const selectedPeak  = selectedData.length ? Math.max(...selectedData.map((d) => d.count)) : null;
+  const selectedPeakTime = selectedData.find((d) => d.count === selectedPeak)?.time;
 
   // Busy-ness: compare current count vs yesterday same time
   let busyLabel = null;
@@ -158,27 +183,29 @@ export default function GymDashboard() {
   // Color by occupancy
   const countColor =
     currentCount === null ? "#e8ff47"
-    : currentCount > 80   ? "#ff4f4f"
-    : currentCount > 50   ? "#ffaa00"
+    : currentCount > 100   ? "#ff4f4f"
+    : currentCount > 80   ? "#ffaa00"
     : "#4fffb0";
 
-  // Merge today + overlays into a unified time-keyed dataset
+  // Merge selected + overlays into a unified time-keyed dataset
   const allTimes = [...new Set([
-    ...todayData.map((d) => d.time),
+    ...selectedData.map((d) => d.time),
     ...(showYesterday ? yesterdayData.map((d) => d.time) : []),
     ...(showWeekAgo   ? weekAgoData.map((d) => d.time)   : []),
   ])].sort();
 
   const yMap = Object.fromEntries(yesterdayData.map((d) => [d.time, d.count]));
   const wMap = Object.fromEntries(weekAgoData.map((d)   => [d.time, d.count]));
-  const tMap = Object.fromEntries(todayData.map((d)     => [d.time, d.count]));
+  const sMap = Object.fromEntries(selectedData.map((d)  => [d.time, d.count]));
 
   const merged = allTimes.map((t) => ({
     time: t,
-    today:     tMap[t] ?? null,
+    selected:  sMap[t] ?? null,
     yesterday: yMap[t] ?? null,
     weekAgo:   wMap[t] ?? null,
   }));
+
+  const dateInfo = getDisplayDate(selectedDateOffset);
 
   return (
     <>
@@ -211,9 +238,71 @@ export default function GymDashboard() {
           <div style={{ fontSize: 11, color: "#fff", marginTop: 8 }}>
             {loading ? "Loading…"
               : lastUpdated
-              ? `Last updated ${lastUpdated.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })} · auto-refreshes every 10 min`
+              ? `Last updated ${lastUpdated.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}${selectedDateOffset === 0 ? " · auto-refreshes every 10 min" : ""}`
               : ""}
           </div>
+        </div>
+
+        {/* Date Navigation */}
+        <div style={{
+          display: "flex", alignItems: "center", gap: 16, marginBottom: 24,
+          padding: "16px", background: "#0e0e0e", border: "1px solid #1e1e1e", borderRadius: 2,
+        }}>
+          <button
+            onClick={() => setSelectedDateOffset(offset => offset + 1)}
+            style={{
+              padding: "8px 12px", fontSize: 12, fontFamily: "'DM Mono', monospace",
+              border: "1px solid #333", background: "transparent", color: "#999",
+              cursor: "pointer", borderRadius: 2, transition: "all 0.15s",
+              fontWeight: 600,
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = "#e8ff47";
+              e.currentTarget.style.color = "#e8ff47";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = "#333";
+              e.currentTarget.style.color = "#999";
+            }}
+            disabled={selectedDateOffset === 0}
+          >
+            ← Newer
+          </button>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: 1 }}>
+            <div style={{ fontSize: 13, letterSpacing: "0.1em", textTransform: "uppercase", color: "#666" }}>
+              Data for
+            </div>
+            <div style={{
+              fontSize: 24, fontFamily: "'DM Mono', monospace", fontWeight: 500,
+              color: "#e8ff47", letterSpacing: "0.05em",
+            }}>
+              {dateInfo.display}
+            </div>
+            <div style={{ fontSize: 11, color: "#999", letterSpacing: "0.05em" }}>
+              {dateInfo.dow}
+            </div>
+          </div>
+
+          <button
+            onClick={() => setSelectedDateOffset(offset => offset - 1)}
+            style={{
+              padding: "8px 12px", fontSize: 12, fontFamily: "'DM Mono', monospace",
+              border: "1px solid #333", background: "transparent", color: "#999",
+              cursor: "pointer", borderRadius: 2, transition: "all 0.15s",
+              fontWeight: 600,
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = "#e8ff47";
+              e.currentTarget.style.color = "#e8ff47";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = "#333";
+              e.currentTarget.style.color = "#999";
+            }}
+          >
+            Older →
+          </button>
         </div>
 
         {error && (
@@ -227,9 +316,9 @@ export default function GymDashboard() {
 
         {/* Stat Cards */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12, marginBottom: 28 }}>
-          <StatCard label="Right Now" value={currentCount ?? "—"} sub={busyLabel} color={countColor} />
-          <StatCard label="Today's Peak" value={todayPeak ?? "—"} sub={todayPeakTime ? `at ${todayPeakTime}` : null} color="#e8ff47" />
-          <StatCard label="Datapoints Today" value={todayData.length} sub="10-min intervals" color="#e8ff47" />
+          <StatCard label="Latest Reading" value={currentCount ?? "—"} sub={busyLabel} color={countColor} />
+          <StatCard label="Peak Count" value={selectedPeak ?? "—"} sub={selectedPeakTime ? `at ${selectedPeakTime}` : null} color="#e8ff47" />
+          <StatCard label="Datapoints" value={selectedData.length} sub="10-min intervals" color="#e8ff47" />
         </div>
 
         {/* Chart Controls */}
@@ -248,9 +337,9 @@ export default function GymDashboard() {
             <div style={{ height: 300, display: "flex", alignItems: "center", justifyContent: "center", color: "#333", fontSize: 13 }}>
               Fetching data…
             </div>
-          ) : todayData.length === 0 ? (
+          ) : selectedData.length === 0 ? (
             <div style={{ height: 300, display: "flex", alignItems: "center", justifyContent: "center", color: "#333", fontSize: 13 }}>
-              No data for today yet.
+              No data for {dateInfo.display} yet.
             </div>
           ) : (
             <ResponsiveContainer width="100%" height={320}>
@@ -270,9 +359,9 @@ export default function GymDashboard() {
                   wrapperStyle={{ paddingTop: 16, fontSize: 11, color: "#555", letterSpacing: "0.1em" }}
                 />
 
-                {/* Today */}
+                {/* Selected date */}
                 <Line
-                  type="monotone" dataKey="today" name="Today"
+                  type="monotone" dataKey="selected" name={dateInfo.display}
                   stroke="#e8ff47" strokeWidth={2} dot={false}
                   connectNulls activeDot={{ r: 4, fill: "#e8ff47" }}
                 />
@@ -296,7 +385,7 @@ export default function GymDashboard() {
                 )}
 
                 {/* Current time marker */}
-                {latest && (
+                {latest && selectedDateOffset === 0 && (
                   <ReferenceLine
                     x={latest.time} stroke="#333" strokeDasharray="2 4"
                     label={{ value: "now", fill: "#444", fontSize: 10, position: "top" }}
