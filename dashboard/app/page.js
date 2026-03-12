@@ -1,49 +1,13 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { THEMES } from "./lib/themes";
+import { SUPABASE_URL, SUPABASE_ANON_KEY, REFRESH_MS} from "./lib/constants";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, ReferenceLine, Legend
 } from "recharts";
-
-// ── CONFIG ────────────────────────────────────────────────────────────────────
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-const REFRESH_MS = 10 * 60 * 1000; // 10 min
-
-// ── THEMES ───────────────────────────────────────────────────────────────────
-const THEMES = {
-  dark: {
-    bg: "#0a0a0a", cardBg: "#111", panelBg: "#0e0e0e",
-    border: "#1e1e1e", borderLight: "#2a2a2a",
-    text: "#e0e0e0", textMuted: "#666", textDim: "#555", textFaint: "#444", textGhost: "#333",
-    title: "#fff", subtitle: "#fff",
-    accent: "#e8ff47", green: "#4fffb0",
-    chartGrid: "#1a1a1a", chartAxis: "#222",
-    tooltipBg: "#0d0d0d",
-    yesterday: "#7eb8ff", weekAgo: "#b97eff",
-    errorBg: "#1a0000", errorBorder: "#550000", errorText: "#ff6b6b",
-    scrollTrack: "#111", scrollThumb: "#333",
-    countGood: "#4fffb0", countWarn: "#ffaa00", countBad: "#ff4f4f",
-    btnHover: "#e8ff47",
-    bestBg: "#4fffb012", bestBorder: "#4fffb033",
-  },
-  light: {
-    bg: "#f5f5f0", cardBg: "#fff", panelBg: "#fafaf7",
-    border: "#e0ddd5", borderLight: "#d5d2ca",
-    text: "#2a2a2a", textMuted: "#888", textDim: "#999", textFaint: "#aaa", textGhost: "#ccc",
-    title: "#1a1a1a", subtitle: "#333",
-    accent: "#5a7a00", green: "#1a9960",
-    chartGrid: "#eae8e2", chartAxis: "#d0cdc5",
-    tooltipBg: "#fff",
-    yesterday: "#3b82f6", weekAgo: "#8b5cf6",
-    errorBg: "#fef2f2", errorBorder: "#fca5a5", errorText: "#dc2626",
-    scrollTrack: "#eee", scrollThumb: "#ccc",
-    countGood: "#1a9960", countWarn: "#d97706", countBad: "#dc2626",
-    btnHover: "#5a7a00",
-    bestBg: "#1a996012", bestBorder: "#1a996033",
-  },
-};
+import { Analytics } from '@vercel/analytics/next';
 
 // Taipei is UTC+8
 const parseTimestamp = (tsStr) => {
@@ -345,7 +309,7 @@ export default function GymDashboard() {
           <div style={{ fontSize: 11, color: t.subtitle, marginTop: 8 }}>
             {loading ? "Loading…"
               : lastUpdated
-              ? `Last updated ${lastUpdated.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}${selectedDateOffset === 0 ? " · auto-refreshes every 10 min" : ""}`
+              ? `Last updated ${lastUpdated.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}${selectedDateOffset === 0 ? " · refreshes every 10 min" : ""}`
               : ""}
           </div>
         </div>
@@ -554,6 +518,8 @@ export default function GymDashboard() {
           Timezone: Asia/Taipei (UTC+8) · Source: rent.pe.ntu.edu.tw
         </div>
       </div>
+
+      <Analytics />
     </>
   );
 }

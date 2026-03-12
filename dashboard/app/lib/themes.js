@@ -1,0 +1,33 @@
+// ── THEMES ───────────────────────────────────────────────────────────────────
+export const THEMES = {
+  dark: {
+    bg: "#0a0a0a", cardBg: "#111", panelBg: "#0e0e0e",
+    border: "#1e1e1e", borderLight: "#2a2a2a",
+    text: "#e0e0e0", textMuted: "#666", textDim: "#555", textFaint: "#444", textGhost: "#333",
+    title: "#fff", subtitle: "#fff",
+    accent: "#e8ff47", green: "#4fffb0",
+    chartGrid: "#1a1a1a", chartAxis: "#222",
+    tooltipBg: "#0d0d0d",
+    yesterday: "#7eb8ff", weekAgo: "#b97eff",
+    errorBg: "#1a0000", errorBorder: "#550000", errorText: "#ff6b6b",
+    scrollTrack: "#111", scrollThumb: "#333",
+    countGood: "#4fffb0", countWarn: "#ffaa00", countBad: "#ff4f4f",
+    btnHover: "#e8ff47",
+    bestBg: "#4fffb012", bestBorder: "#4fffb033",
+  },
+  light: {
+    bg: "#f5f5f0", cardBg: "#fff", panelBg: "#fafaf7",
+    border: "#e0ddd5", borderLight: "#d5d2ca",
+    text: "#2a2a2a", textMuted: "#888", textDim: "#999", textFaint: "#aaa", textGhost: "#ccc",
+    title: "#1a1a1a", subtitle: "#333",
+    accent: "#5a7a00", green: "#1a9960",
+    chartGrid: "#eae8e2", chartAxis: "#d0cdc5",
+    tooltipBg: "#fff",
+    yesterday: "#3b82f6", weekAgo: "#8b5cf6",
+    errorBg: "#fef2f2", errorBorder: "#fca5a5", errorText: "#dc2626",
+    scrollTrack: "#eee", scrollThumb: "#ccc",
+    countGood: "#1a9960", countWarn: "#d97706", countBad: "#dc2626",
+    btnHover: "#5a7a00",
+    bestBg: "#1a996012", bestBorder: "#1a996033",
+  },
+};
